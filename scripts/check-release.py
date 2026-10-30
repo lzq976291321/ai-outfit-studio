@@ -9,6 +9,6 @@ for p in files:
   text=p.read_text()
   assert ('/'+'Users/') not in text, rel
   assert not re.search(r'sk-[A-Za-z0-9]{20,}|Bearer eyJ[A-Za-z0-9_-]+',text), rel
-for f in ('site/index.html','site/style.css','site/assets/outfit.png','prototype/data/catalog.json','prototype/data/poses.json'):
+for f in ('prototype/server.py','prototype/app.js'):
  assert (root/f).is_file(), f
 print(f'Release scan passed: {len(files)} files')

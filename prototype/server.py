@@ -7,9 +7,7 @@ import secrets
 import subprocess
 import threading
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -17,27 +15,41 @@ ROOT = Path(__file__).resolve().parent
 GENERATIONS = threading.BoundedSemaphore(2)
 
 
-def request(url, key='', payload=None, content_type='application/json'):
-    if not key and payload is None:
-        # Read public reference/result bytes into memory; curl handles these hosts' TLS/CDN policy.
-        result = subprocess.run(['curl', '-sS', '--max-time', '60', '--max-filesize', '32000000', '--config', '-', '-w', '\n%{http_code}'], input=('url = ' + json.dumps(url) + '\n').encode(), capture_output=True)
-        raw, _, status = result.stdout.rpartition(b'\n')
-        if result.returncode or status != b'200' or len(raw) > 32_000_000:
-            raise ValueError('图片读取失败，请稍后再试或选择本地图片')
-        return raw
-    headers = {'Content-Type': content_type}
-    if key:
-        headers['Authorization'] = 'Bearer ' + key
-    req = urllib.request.Request(url, data=payload, headers=headers)
-    # Do not forward credentials through redirects.
-    class NoRedirect(urllib.request.HTTPRedirectHandler):
-        def redirect_request(self, *args, **kwargs):
-            return None
-    with urllib.request.build_opener(NoRedirect).open(req, timeout=180) as response:
-        raw = response.read(32_000_001)
-        if len(raw) > 32_000_000:
-            raise ValueError('上游返回过大')
-        return raw
+GALLERIES = ('ai-costume-gallery.pages.dev', 'ai-pose-gallery.pages.dev')
+
+
+def remote_bytes(url):
+    result = subprocess.run(['curl', '-sS', '--max-time', '45', '--max-filesize', '12000000', '--proto', '=https', '--config', '-', '-w', '\n%{http_code}'], input=('url = ' + json.dumps(url) + '\n').encode(), capture_output=True, timeout=50)
+    raw, _, status = result.stdout.rpartition(b'\n')
+    if result.returncode or status != b'200' or len(raw) > 12_000_000:
+        raise ValueError('在线图库暂不可用，请稍后重试')
+    return raw
+
+
+def online_catalog(kind):
+    if kind == 'catalog':
+        html = remote_bytes('https://ai-costume-gallery.pages.dev/').decode()
+        match = re.search(r'const\s+D\s*=\s*', html)
+        if not match:
+            raise ValueError('在线穿搭库结构已变化')
+        data, _ = json.JSONDecoder().raw_decode(html[match.end():])
+    else:
+        data = json.loads(remote_bytes('https://raw.githubusercontent.com/anhao/ai-pose-gallery-zh/main/data/pose-zh.json'))
+        data = [p for p in data if p.get('体系') == '全身单人・标准系']
+    if not isinstance(data, list) or not data:
+        raise ValueError('在线图库数据无效')
+    return json.dumps(data, ensure_ascii=False).encode()
+
+
+def reference_image(url):
+    parsed = urllib.parse.urlsplit(url)
+    if parsed.scheme != 'https' or parsed.netloc not in GALLERIES or parsed.query or parsed.fragment or not re.fullmatch(r'/img/[A-Za-z0-9_-]+\.(png|webp)', parsed.path):
+        raise ValueError('仅支持所选在线图库原图')
+    raw = remote_bytes(url)
+    mime = 'image/png' if raw.startswith(b'\x89PNG\r\n\x1a\n') else 'image/webp' if raw[:4] == b'RIFF' and raw[8:12] == b'WEBP' else None
+    if not mime or len(raw) > 8_000_000:
+        raise ValueError('图库图片格式或大小不支持')
+    return {'image': 'data:' + mime + ';base64,' + base64.b64encode(raw).decode()}
 
 
 class LocalGenerationError(ValueError):
@@ -63,17 +75,8 @@ def local_chatgpt(data):
 
 
 def generate(data):
-    local = data.get('protocol') == 'codex-local'
-    key = data.get('key', '').strip()
-    endpoint = data.get('endpoint', '').strip()
-    parsed = urllib.parse.urlsplit(endpoint)
-    if not local and parsed.scheme != 'https' and not (parsed.scheme == 'http' and parsed.hostname in ('localhost', '127.0.0.1')):
-        raise ValueError('接口须为 HTTPS 或本机 HTTP 地址')
-    if not local and (parsed.username or parsed.password or parsed.query or parsed.fragment or not parsed.hostname):
-        raise ValueError('请填写不含凭据或查询参数的完整接口地址')
-    model = data.get('model', '').strip()
-    if not local and (not key or len(key) > 4096 or '\n' in key or '\r' in key or not model or len(model) > 200):
-        raise ValueError('请填写 API Key 和图生图模型')
+    if any(field in data for field in ('protocol', 'endpoint', 'model', 'key')):
+        raise ValueError('仅支持本机 ChatGPT，不接受接口配置')
     refs = data.get('references', [])
     if not isinstance(refs, list) or not 1 <= len(refs) <= 3:
         raise ValueError('请选择穿搭图')
@@ -97,58 +100,7 @@ def generate(data):
               + '姿势：' + pose + '。摄影风格：' + style + '。9:16手机竖图，头顶和鞋底完整留边。'
               '按摄影风格选择合理环境与现场光，光影、接触关系和透视可信，保留自然皮肤与衣料细节。人物放松，背景可辨。'
               '避免过度磨皮、美颜瘦身、塑料皮肤、HDR光晕、强虚化、肢体畸形、文字及拼图；不靠模糊和噪点伪装真实。补充：' + extra)
-    protocol = data.get('protocol')
-    if protocol == 'codex-local':
-        return local_chatgpt({'action': 'generate', 'prompt': prompt, 'references': refs})
-    if protocol == 'globalrouter':
-        payload = json.dumps({'model': model, 'prompt': prompt, 'input_references': [{'type': 'image_url', 'image_url': {'url': ref}} for ref in refs], 'size': '864x1536', 'n': 1, 'response_format': 'url', 'stream': False}).encode()
-        result = json.loads(request(endpoint, key, payload))
-        if isinstance(result.get('data'), dict):
-            result = result['data']
-        task = result.get('task_id') or result.get('id')
-        deadline = time.monotonic() + 480
-        while task and not result.get('output') and not isinstance(result.get('data'), list):
-            if result.get('status') in ('failed', 'canceled', 'cancelled'):
-                raise ValueError('上游任务失败，请在供应商处核对详情')
-            if time.monotonic() > deadline:
-                raise ValueError('上游任务未完成，请先核对供应商状态，避免重复付费')
-            time.sleep(2)
-            result = json.loads(request(f'{parsed.scheme}://{parsed.netloc}/v1/tasks/{urllib.parse.quote(str(task), safe="")}?wait=10', key))
-            if isinstance(result.get('data'), dict):
-                result = result['data']
-    elif protocol == 'doubao':
-        payload = json.dumps({'model': model, 'prompt': prompt, 'image': refs if len(refs) > 1 else refs[0], 'size': '1440x2560', 'response_format': 'b64_json', 'stream': False}).encode()
-        result = json.loads(request(endpoint, key, payload))
-    elif protocol == 'openai-edits':
-        boundary = secrets.token_hex(24)
-        parts = []
-        for name, value in [('model', model), ('prompt', prompt), ('n', '1'), ('size', '864x1536')]:
-            parts.append(f'--{boundary}\r\nContent-Disposition: form-data; name="{name}"\r\n\r\n{value}\r\n'.encode())
-        for i, (mime, raw) in enumerate(images):
-            field = 'image[]' if len(images) > 1 else 'image'
-            ext = mime.split('/')[1]
-            parts.extend([f'--{boundary}\r\nContent-Disposition: form-data; name="{field}"; filename="reference-{i+1}.{ext}"\r\nContent-Type: {mime}\r\n\r\n'.encode(), raw, b'\r\n'])
-        parts.append(f'--{boundary}--\r\n'.encode())
-        result = json.loads(request(endpoint, key, b''.join(parts), 'multipart/form-data; boundary=' + boundary))
-    else:
-        raise ValueError('不支持的图生图协议')
-    outputs = result.get('output') or result.get('data')
-    if not isinstance(outputs, list) or not outputs:
-        raise ValueError('接口未返回图片；请核对上游任务，不会自动重试')
-    item = outputs[0]
-    if item.get('b64_json'):
-        raw = base64.b64decode(item['b64_json'], validate=True)
-    else:
-        url = item.get('url') or item.get('image_url')
-        if isinstance(url, dict):
-            url = url.get('url')
-        if not isinstance(url, str) or urllib.parse.urlsplit(url).scheme != 'https':
-            raise ValueError('上游没有返回可读取的 HTTPS 图片')
-        raw = request(url)  # Never send the API key to image hosts.
-    mime = 'image/png' if raw.startswith(b'\x89PNG\r\n\x1a\n') else 'image/jpeg' if raw.startswith(b'\xff\xd8') else 'image/webp' if raw[:4] == b'RIFF' and raw[8:12] == b'WEBP' else None
-    if not mime or len(raw) > 25_000_000:
-        raise ValueError('返回图片格式或大小不支持')
-    return {'image': 'data:' + mime + ';base64,' + base64.b64encode(raw).decode()}
+    return local_chatgpt({'action': 'generate', 'prompt': prompt, 'references': refs})
 
 
 SAVE_DIR = Path.home() / 'Downloads' / '衣见成片'
@@ -213,17 +165,16 @@ class Handler(BaseHTTPRequestHandler):
         entry = files.get(urllib.parse.urlsplit(self.path).path)
         path = urllib.parse.urlsplit(self.path).path
         if path in ('/prototype/data/catalog.json', '/prototype/data/poses.json'):
-            return self.send(200, (ROOT / 'data' / path.rsplit('/', 1)[1]).read_bytes())
-        if re.fullmatch(r'/prototype/data/(examples/(01-cream-khaki|02-burgundy-black|03-grey-blue)\.png|poses/pose-0[1-6]\.svg)', path):
-            file = ROOT / path.removeprefix('/prototype/')
-            if file.is_file():
-                return self.send(200, file.read_bytes(), 'image/svg+xml' if file.suffix == '.svg' else 'image/png')
+            try:
+                return self.send(200, online_catalog('catalog' if path.endswith('catalog.json') else 'poses'))
+            except Exception:
+                return self.send(502, {'error': '在线图库加载失败，请稍后重试'})
         if not entry:
             return self.send(404, {'error': 'Not found'})
         self.send(200, (ROOT / entry[0]).read_bytes(), entry[1])
 
     def do_POST(self):
-        if self.path not in ('/api/generate', '/api/local-chatgpt/connect'):
+        if self.path not in ('/api/generate', '/api/local-chatgpt/connect', '/api/reference'):
             return self.send(404, {'error': 'Not found'})
         if self.headers.get('Host') not in (f'localhost:{self.server.server_port}', f'127.0.0.1:{self.server.server_port}') or self.headers.get('Origin') not in (f'http://localhost:{self.server.server_port}', f'http://127.0.0.1:{self.server.server_port}'):
             return self.send(403, {'error': '仅允许本机页面请求'})
@@ -235,15 +186,15 @@ class Handler(BaseHTTPRequestHandler):
             if not 0 < size <= 34_000_000:
                 raise ValueError('请求大小不允许')
             data = json.loads(self.rfile.read(size))
-            if self.path == '/api/local-chatgpt/connect':
+            if self.path == '/api/reference':
+                result = reference_image(data.get('url', ''))
+            elif self.path == '/api/local-chatgpt/connect':
                 result = local_chatgpt({'action': 'connect'})
             else:
                 result = save_generated_result(generate(data), data.get('saveTarget'), data.get('outfitName', '穿搭照'))
             self.send(200, result)
         except LocalGenerationError as exc:
             self.send(400 if exc.output.get('errorCode') == 'CONTENT_REJECTED' else 502, {key: exc.output[key] for key in ('error', 'errorCode', 'diagnostics') if key in exc.output})
-        except urllib.error.HTTPError as exc:
-            self.send(502, {'error': f'供应商返回 HTTP {exc.code}，请核对接口、Key、模型及尺寸支持；不会自动重试'})
         except (ValueError, TypeError, AttributeError) as exc:
             # Only locally authored messages are exposed; never echo upstream content.
             message = str(exc) if type(exc) is ValueError and not isinstance(exc, json.JSONDecodeError) else '输入或返回格式无效'

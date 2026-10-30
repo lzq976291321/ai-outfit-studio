@@ -15,7 +15,7 @@ jobs:
           python-version: '3.12'
       - run: python3 -B start.py --check
       - run: node --check prototype/app.js
-      - run: node --test prototype/test_chatgpt_images.mjs prototype/test_chatgpt_response.mjs
+      - run: node --test prototype/test_chatgpt_images.mjs
       - run: python3 -B -m unittest test_output_save.py
         working-directory: prototype
       - run: python3 -B scripts/check-release.py

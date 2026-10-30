@@ -1,6 +1,6 @@
 /** Local-login Images adapter. A single request; no fallbacks or automatic retries. */
 import crypto from 'node:crypto';
-import {completePng,ImageResponseError} from './chatgpt-response.mjs';
+import {completePng,ImageResponseError} from './image-common.mjs';
 export function safeProviderError(payload,secrets=[]){
  const error=payload?.error??payload??{};
  let message=typeof error==='string'?error:typeof error.message==='string'?error.message:'';
