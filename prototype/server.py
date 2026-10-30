@@ -94,12 +94,17 @@ def generate(data):
     pose = str(data.get('pose', '自然站立'))[:100]
     style = str(data.get('style', '自然手机感'))[:100]
     extra = str(data.get('extra', ''))[:1500]
+    styles = json.loads((ROOT / 'photography_styles.json').read_text(encoding='utf-8'))
+    if style not in styles:
+        raise ValueError('请选择支持的摄影风格')
+    photography = '\n'.join(f'【{section}】{text}' for section, text in styles[style].items())
     prompt = ('根据图片1的整套穿搭，生成成年人物全身穿搭照片。保持衣物款式、颜色、材质及鞋袜配件；不要带入平铺背景。'
               + ('图片2仅用于人物身份及体型参考，保持其人脸与体型。' if data.get('hasPerson') else '人物为虚构成年人。')
               + (f'图片{len(images)}仅用于姿势与构图参考，不复制其人物身份、衣着或背景。' if data.get('hasPose') else '')
               + '姿势：' + pose + '。摄影风格：' + style + '。9:16手机竖图，头顶和鞋底完整留边。'
-              '按摄影风格选择合理环境与现场光，光影、接触关系和透视可信，保留自然皮肤与衣料细节。人物放松，背景可辨。'
-              '避免过度磨皮、美颜瘦身、塑料皮肤、HDR光晕、强虚化、肢体畸形、文字及拼图；不靠模糊和噪点伪装真实。补充：' + extra)
+              + '\n【摄影风格细则】\n' + photography
+              + '\n【共同约束】衣物款式与参考人物身份优先，所选姿势优先于风格建议。肢体结构、接触关系与透视可信。无文字、水印、相机界面或拼图。'
+              + '\n【用户补充要求】' + extra)
     return local_chatgpt({'action': 'generate', 'prompt': prompt, 'references': refs})
 
 

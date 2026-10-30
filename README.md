@@ -32,7 +32,7 @@ python3 -B start.py
 ```sh
 node --check prototype/app.js
 node --test prototype/test_chatgpt_images.mjs
-(cd prototype && python3 -B -m unittest test_output_save.py)
+(cd prototype && python3 -B -m unittest test_output_save.py test_photography_styles.py)
 python3 -B scripts/check-release.py
 python3 -B scripts/package.py
 ```
@@ -42,3 +42,5 @@ python3 -B scripts/package.py
 代码使用 MIT，Anime.js 保留原 MIT 许可。在线图片适用来源自己的条款，不随发布包分发，详见 THIRD_PARTY_NOTICES.md。
 
 在线来源：https://ai-costume-gallery.pages.dev/ 、https://ai-pose-gallery.pages.dev/ ，中文姿势索引：https://github.com/anhao/ai-pose-gallery-zh 。图片允许作品参考但禁止再分发；姿势库限制用于真实人物或未成年。代码开源不等于图片开源。图库不可用时明确提示，不回退本地样本。
+
+摄影风格按环境、光线、镜头、质感和避免事项展开后发送，详见 [摄影风格说明](docs/photography-styles.md)。
