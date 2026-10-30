@@ -1,0 +1,56 @@
+[
+  {
+    "id": "studio_pose_01_front",
+    "体系": "全身单人・标准系",
+    "分类": "站姿",
+    "姿势名称": "自然站立",
+    "角度": "正面",
+    "检索": "自然站立 站姿 坐姿",
+    "localAsset": "/prototype/data/poses/pose-01.svg"
+  },
+  {
+    "id": "studio_pose_02_front",
+    "体系": "全身单人・标准系",
+    "分类": "站姿",
+    "姿势名称": "双手扶腰",
+    "角度": "正面",
+    "检索": "双手扶腰 站姿 坐姿",
+    "localAsset": "/prototype/data/poses/pose-02.svg"
+  },
+  {
+    "id": "studio_pose_03_front",
+    "体系": "全身单人・标准系",
+    "分类": "站姿",
+    "姿势名称": "自然行走",
+    "角度": "正面",
+    "检索": "自然行走 站姿 坐姿",
+    "localAsset": "/prototype/data/poses/pose-03.svg"
+  },
+  {
+    "id": "studio_pose_04_front",
+    "体系": "全身单人・标准系",
+    "分类": "站姿",
+    "姿势名称": "单手抚发",
+    "角度": "正面",
+    "检索": "单手抚发 站姿 坐姿",
+    "localAsset": "/prototype/data/poses/pose-04.svg"
+  },
+  {
+    "id": "studio_pose_05_front",
+    "体系": "全身单人・标准系",
+    "分类": "站姿",
+    "姿势名称": "一手拎包",
+    "角度": "正面",
+    "检索": "一手拎包 站姿 坐姿",
+    "localAsset": "/prototype/data/poses/pose-05.svg"
+  },
+  {
+    "id": "studio_pose_06_front",
+    "体系": "全身单人・标准系",
+    "分类": "坐姿",
+    "姿势名称": "轻松坐姿",
+    "角度": "正面",
+    "检索": "轻松坐姿 站姿 坐姿",
+    "localAsset": "/prototype/data/poses/pose-06.svg"
+  }
+]

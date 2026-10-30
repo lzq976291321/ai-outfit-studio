@@ -1,0 +1,23 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import {parseImageResponse} from './chatgpt-response.mjs';
+const png=fs.readFileSync(new URL('../tests/fixtures/tiny.png',import.meta.url)).toString('base64');
+const image={type:'image_generation_call',status:'completed',result:png};
+const sse=e=>'data: '+JSON.stringify(e)+'\n\n';
+const done=sse({type:'response.output_item.done',item:image});
+const complete=sse({type:'response.completed',response:{output:[image]}});
+function throwsCode(input,code){assert.throws(()=>parseImageResponse(input),e=>e.code===code);}
+test('final item plus response completion yields original PNG',()=>assert.equal(parseImageResponse(done+complete).image,'data:image/png;base64,'+png));
+test('valid final tool result survives a missing trailing completion marker',()=>assert.equal(parseImageResponse(done).image,'data:image/png;base64,'+png));
+test('terminal image item can omit redundant status',()=>assert.ok(parseImageResponse(sse({type:'response.output_item.done',item:{type:'image_generation_call',result:png}})).image));
+test('SSE without optional spaces, CRLF and event-name fallback',()=>assert.ok(parseImageResponse('event: response.output_item.done\r\ndata:'+JSON.stringify({item:image})+'\r\n\r\n').image));
+test('multiline SSE data JSON supported',()=>assert.ok(parseImageResponse('event: response.output_item.done\ndata: {"item":\ndata: '+JSON.stringify(image)+'}\n\n').image));
+test('nonstreaming completed JSON supported',()=>assert.ok(parseImageResponse(JSON.stringify({status:'completed',output:[image]})).image));
+test('preview never becomes final',()=>throwsCode(sse({type:'response.image_generation_call.partial_image',partial_image_b64:png}),'PREVIEW_ONLY'));
+test('in-progress image result is not terminal',()=>throwsCode(sse({type:'response.output_item.added',item:image}),'MISSING_FINAL_IMAGE'));
+test('text-only response has a distinct diagnosis',()=>throwsCode(sse({type:'response.completed',response:{output:[{type:'message',content:[{type:'output_text',text:'not an image'}]}]}}),'IMAGE_TOOL_NOT_CALLED'));
+test('refusal has a distinct diagnosis',()=>throwsCode(sse({type:'response.completed',response:{output:[{type:'message',content:[{type:'refusal',refusal:'private content'}]}]}}),'UPSTREAM_REFUSED'));
+test('upstream failure takes precedence over a candidate image',()=>throwsCode(done+sse({type:'response.failed'}),'UPSTREAM_FAILED'));
+test('truncated PNG is rejected even with completion status',()=>throwsCode(sse({type:'response.output_item.done',item:{...image,result:Buffer.from(png,'base64').subarray(0,-12).toString('base64')}}),'INVALID_FINAL_IMAGE'));
+test('diagnostics never include content, IDs, tokens or image data',()=>{const out=parseImageResponse(done);assert.ok(!JSON.stringify(out.diagnostics).includes(png.slice(0,25)));assert.deepEqual(Object.keys(out.diagnostics).sort(),['completed','events','failed','finalImages','incomplete','malformedEvents','outputTypes','partialImages','refused'].sort());});

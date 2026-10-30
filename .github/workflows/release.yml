@@ -1,0 +1,26 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: node --check prototype/app.js
+      - run: node --test prototype/test_chatgpt_images.mjs prototype/test_chatgpt_response.mjs
+      - run: python3 -B -m unittest test_output_save.py
+        working-directory: prototype
+      - run: python3 -B scripts/package.py
+      - run: gh release create "$RELEASE_TAG" dist/ai-outfit-studio.zip --title "衣见 $RELEASE_TAG" --notes-file .github/release-notes.md --latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.ref_name }}

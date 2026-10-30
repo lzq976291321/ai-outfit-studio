@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.env*
+.vercel/
+dist/
+.DS_Store
+auth.json
+.codex/

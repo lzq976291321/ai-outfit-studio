@@ -1,0 +1,23 @@
+[
+  {
+    "id": "studio-001",
+    "name": "奶油卡其",
+    "カテゴリ": "春",
+    "キーワード": "奶油卡其",
+    "localAsset": "/prototype/data/examples/01-cream-khaki.png"
+  },
+  {
+    "id": "studio-002",
+    "name": "酒红与黑",
+    "カテゴリ": "秋",
+    "キーワード": "酒红与黑",
+    "localAsset": "/prototype/data/examples/02-burgundy-black.png"
+  },
+  {
+    "id": "studio-003",
+    "name": "灰蓝日常",
+    "カテゴリ": "冬",
+    "キーワード": "灰蓝日常",
+    "localAsset": "/prototype/data/examples/03-grey-blue.png"
+  }
+]
