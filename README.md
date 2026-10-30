@@ -1,5 +1,7 @@
 # 衣见 · AI Outfit Studio
 
+[介绍与下载](https://ai-outfit-studio-inky.vercel.app/) · [发布包](https://github.com/lzq976291321/ai-outfit-studio/releases/latest)
+
 本地运行的整套穿搭图生图工具。选择穿搭、人物参考（可选）、姿势与摄影风格，用自己的账号或 API Key 生成成片。
 
 **首个 Alpha 版本，接口与模型效果仍在验证。** 内置 3 套 AI 生成的虚构穿搭、6 个自绘姿势示意；不包含第三方图库数据。姿势示意不是摄影样片，镜头方向同时以文字传递。
