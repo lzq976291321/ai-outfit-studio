@@ -225,7 +225,7 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path not in ('/api/generate', '/api/local-chatgpt/connect'):
             return self.send(404, {'error': 'Not found'})
-        if self.headers.get('Host') not in ('localhost:8765', '127.0.0.1:8765') or self.headers.get('Origin') not in ('http://localhost:8765', 'http://127.0.0.1:8765'):
+        if self.headers.get('Host') not in (f'localhost:{self.server.server_port}', f'127.0.0.1:{self.server.server_port}') or self.headers.get('Origin') not in (f'http://localhost:{self.server.server_port}', f'http://127.0.0.1:{self.server.server_port}'):
             return self.send(403, {'error': '仅允许本机页面请求'})
         slot = self.path == '/api/generate'
         if slot and not GENERATIONS.acquire(blocking=False):

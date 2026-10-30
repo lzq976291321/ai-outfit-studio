@@ -1,17 +1,25 @@
 # 衣见 · AI Outfit Studio
 
-[介绍与下载](https://ai-outfit-studio-inky.vercel.app/) · [发布包](https://github.com/lzq976291321/ai-outfit-studio/releases/latest)
+[发布包](https://github.com/lzq976291321/ai-outfit-studio/releases/latest)
 
 本地运行的整套穿搭图生图工具。选择穿搭、人物参考（可选）、姿势与摄影风格，用自己的账号或 API Key 生成成片。
 
 **首个 Alpha 版本，接口与模型效果仍在验证。** 内置 3 套 AI 生成的虚构穿搭、6 个自绘姿势示意；不包含第三方图库数据。姿势示意不是摄影样片，镜头方向同时以文字传递。
 
-## 开始使用
+## 交给 Agent 启动（推荐）
+
+把下面这段发给 Codex、Claude Code 或其他能操作本地终端的 Agent：
+
+> 帮我下载并启动 https://github.com/lzq976291321/ai-outfit-studio 。使用合适的本地目录，已有目录先检查，不覆盖修改；阅读仓库 AGENTS.md 和 README.md，检查环境后启动服务并打开本地页面。端口占用时换空闲端口，不停止其他服务。启动完成后等我手动连接 ChatGPT，不读取或展示我的登录文件，不提交生成。
+
+Agent 负责下载、检查和启动。你在页面右上角设置中点击连接，再选择穿搭开始生成。连接读取本机 Codex 已有登录；没有登录时先自行在 Codex 使用 ChatGPT 账号登录。首次需要系统运行时或登录授权时仍需你操作。
+
+## 手动开始使用
 
 需要 Python 3.10+、Node.js 20+ 和 curl。无需安装项目依赖。
 
 1. 下载 [最新发布包](https://github.com/lzq976291321/ai-outfit-studio/releases/latest)，解压后进入目录。
-2. 运行 `python3 -B prototype/server.py`。
+2. 运行 `python3 -B start.py`。
 3. 打开 http://127.0.0.1:8765/，在设置中连接本机登录或填写自己的 API Key。
 
 也可以克隆：
@@ -19,10 +27,10 @@
 ```sh
 git clone https://github.com/lzq976291321/ai-outfit-studio.git
 cd ai-outfit-studio
-python3 -B prototype/server.py
+python3 -B start.py
 ```
 
-端口 8765 需要空闲。停止服务使用 Ctrl+C。
+默认使用 8765；占用时运行 `python3 -B start.py --port 8766`。停止服务使用 Ctrl+C。
 
 ## 生成方式
 
@@ -37,7 +45,7 @@ python3 -B prototype/server.py
 
 桌面本机运行时，最终成片自动保存到 `~/Downloads/衣见成片`。手机网页需要点击分享或下载，由系统处理保存；不能静默写入相册，尚未完成真机验收。输入、Key 和任务不会写入应用数据库或浏览器持久化存储，上游有自己的数据政策。
 
-Vercel 页面只提供介绍与下载，不处理账号、上传或生成。只导入你有权使用的图片。
+当前交付为 Agent 启动的本地网站，不再维护 Vercel 介绍页或自动部署。只导入你有权使用的图片。
 
 ## 验证与发布
 
@@ -48,7 +56,7 @@ python3 -B scripts/check-release.py
 python3 -B scripts/package.py
 ```
 
-测试使用本地假响应，不调用真实模型，不等于模型效果验收。GitHub Actions 在 push/PR 检查；推送 `v*` 标签会检查并发布 ZIP。Vercel 连接 main，使用 `site/` 静态输出，不安装依赖。
+测试使用本地假响应，不调用真实模型，不等于模型效果验收。GitHub Actions 在 push/PR 检查；推送 `v*` 标签会检查并发布 ZIP。不配置在线部署。历史介绍页源码仅作存档。
 
 ## 许可
 
