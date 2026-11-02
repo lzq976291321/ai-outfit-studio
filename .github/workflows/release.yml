@@ -16,9 +16,8 @@ jobs:
         with:
           python-version: '3.12'
       - run: python3 -B start.py --check
-      - run: node --check prototype/app.js
-      - run: node --test prototype/test_chatgpt_images.mjs
-      - run: python3 -B -m unittest test_output_save.py test_photography_styles.py
+      - run: node scripts/check-frontend.mjs
+      - run: python3 -B -m unittest test_output_save.py test_photography_styles.py test_request_outcomes.py
         working-directory: prototype
       - run: python3 -B scripts/package.py
       - run: gh release create "$RELEASE_TAG" dist/ai-outfit-studio.zip --title "衣见 $RELEASE_TAG" --notes-file .github/release-notes.md --latest

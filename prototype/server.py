@@ -12,7 +12,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-GENERATIONS = threading.BoundedSemaphore(2)
+GENERATIONS = threading.BoundedSemaphore(4)
 
 
 GALLERIES = ('ai-costume-gallery.pages.dev', 'ai-pose-gallery.pages.dev')
@@ -64,11 +64,11 @@ def local_chatgpt(data):
     except FileNotFoundError:
         raise ValueError('本机连接需要 Node.js 20 或以上版本')
     except subprocess.TimeoutExpired:
-        raise ValueError('生成等待超时，请先核对上游结果，不会自动重试')
+        raise LocalGenerationError({'error': '生成等待超时，请先核对上游结果，不会自动重试', 'errorCode': 'LOCAL_TIMEOUT', 'outcome': 'unknown'})
     try:
         output = json.loads(result.stdout)
     except ValueError:
-        raise ValueError('本机连接未返回有效结果')
+        raise LocalGenerationError({'error': '本机连接未返回有效结果，请先核对上游结果', 'errorCode': 'INVALID_LOCAL_RESPONSE', 'outcome': 'unknown'})
     if result.returncode or output.get('error'):
         raise LocalGenerationError(output)
     return output
@@ -167,8 +167,13 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         files = {'/': ('index.html', 'text/html; charset=utf-8'), '/prototype/': ('index.html', 'text/html; charset=utf-8'), '/prototype/index.html': ('index.html', 'text/html; charset=utf-8'), '/prototype/app.js': ('app.js', 'text/javascript; charset=utf-8'), '/prototype/style.css': ('style.css', 'text/css; charset=utf-8'), '/prototype/vendor/anime-4.5.0.min.js': ('vendor/anime-4.5.0.min.js', 'text/javascript; charset=utf-8')}
+        for name in ('state.js', 'save.js', 'tasks.js', 'gallery.js'):
+            files['/prototype/' + name] = (name, 'text/javascript; charset=utf-8')
         entry = files.get(urllib.parse.urlsplit(self.path).path)
         path = urllib.parse.urlsplit(self.path).path
+        if path == '/prototype/data/styles.json':
+            styles = json.loads((ROOT / 'photography_styles.json').read_text(encoding='utf-8'))
+            return self.send(200, json.dumps(list(styles), ensure_ascii=False).encode())
         if path in ('/prototype/data/catalog.json', '/prototype/data/poses.json'):
             try:
                 return self.send(200, online_catalog('catalog' if path.endswith('catalog.json') else 'poses'))
@@ -185,7 +190,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.send(403, {'error': '仅允许本机页面请求'})
         slot = self.path == '/api/generate'
         if slot and not GENERATIONS.acquire(blocking=False):
-            return self.send(429, {'error': '已有两个生成任务处理中，请稍后手动提交'})
+            return self.send(429, {'error': '已有四个生成任务处理中，请稍后手动提交'})
         try:
             size = int(self.headers.get('Content-Length', '0'))
             if not 0 < size <= 34_000_000:
@@ -199,13 +204,13 @@ class Handler(BaseHTTPRequestHandler):
                 result = save_generated_result(generate(data), data.get('saveTarget'), data.get('outfitName', '穿搭照'))
             self.send(200, result)
         except LocalGenerationError as exc:
-            self.send(400 if exc.output.get('errorCode') == 'CONTENT_REJECTED' else 502, {key: exc.output[key] for key in ('error', 'errorCode', 'diagnostics') if key in exc.output})
+            self.send(400 if exc.output.get('errorCode') == 'CONTENT_REJECTED' else 502, {key: exc.output[key] for key in ('error', 'errorCode', 'diagnostics', 'outcome') if key in exc.output})
         except (ValueError, TypeError, AttributeError) as exc:
             # Only locally authored messages are exposed; never echo upstream content.
             message = str(exc) if type(exc) is ValueError and not isinstance(exc, json.JSONDecodeError) else '输入或返回格式无效'
-            self.send(400, {'error': message[:180]})
+            self.send(400, {'error': message[:180], 'outcome': 'failed'})
         except Exception:
-            self.send(502, {'error': '请求中断或上游响应异常，执行与计费结果待核对；请勿直接重复提交'})
+            self.send(502, {'error': '请求中断或上游响应异常，执行与计费结果待核对；请勿直接重复提交', 'outcome': 'unknown'})
         finally:
             if slot:
                 GENERATIONS.release()

@@ -27,5 +27,5 @@ async function main(){
 main().then(result=>process.stdout.write(JSON.stringify(result))).catch(e=>{
   // Never print raw upstream errors, headers, bodies, auth objects, or stack traces.
   const message=e.diagnostics||/^(未找到本机登录|本机登录|本机生成参数|ChatGPT 返回)/.test(e.message)?e.message:'连接中断，执行结果待核对，请勿直接重复提交';
-  process.stdout.write(JSON.stringify({error:message,...(e.code?{errorCode:e.code}:{}),...(e.diagnostics?{diagnostics:e.diagnostics}:{})}));process.exitCode=1;
+  process.stdout.write(JSON.stringify({error:message,outcome:/^(未找到本机登录|本机登录|本机生成参数)/.test(e.message)||(e.diagnostics&&e.diagnostics.httpStatus>=400&&e.diagnostics.httpStatus<500)?'failed':'unknown',...(e.code?{errorCode:e.code}:{}),...(e.diagnostics?{diagnostics:e.diagnostics}:{})}));process.exitCode=1;
 });
